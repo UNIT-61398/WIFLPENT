@@ -25,6 +25,7 @@ banner() {
     echo -e "${DARK}║${NC}  ${RED}⚡${NC} ${WHITE}C A P T U R E   W I - F I   |   C R A C K   P A S S W O R D${NC}   ${DARK}║${NC}"
     echo -e "${DARK}║${NC}  ${RED}⚡${NC} ${YELLOW}S E T T I N G   U P   B R U T E F O R C E   A T T A C K${NC}       ${DARK}║${NC}"
     echo -e "${DARK}║${NC}  ${CYAN}🛡️${NC} ${GREEN}B Y   T E A M   U N I T - 6 1 3 9 8${NC}                          ${DARK}║${NC}"
+    echo -e "${DARK}║${NC}  ${CYAN}🌐${NC} ${WHITE}github.com/UNIT-61398${NC}                                         ${DARK}║${NC}"
     echo -e "${DARK}╚${DASHES}╝${NC}"
     echo ""
 }
