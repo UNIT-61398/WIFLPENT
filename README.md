@@ -76,7 +76,7 @@ This tool is for **authorized security testing and educational purposes only**. 
 
 MIT License
 
-Copyright (c) 2024 Team UNIT-61398
+Copyright (c) 2026 Team UNIT-61398
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
