@@ -1,4 +1,4 @@
-# WIFI-PWN — WiFi Penetration Testing Suite
+# WIFLPENT — WiFi Penetration Testing Suite
 
 **Developed by TEAM UNIT-61398**
 
@@ -30,8 +30,8 @@ A fully automated WiFi penetration testing toolkit for ethical hacking and secur
 ## Installation
 
 ```bash
-git clone https://github.com/UNIT-61398/wifi-pwn.git
-cd wifi-pwn
+git clone https://github.com/UNIT-61398/WIFLPENT.git
+cd WIFLPENT
 chmod +x wifi_pen_test.sh
 ```
 
