@@ -8,14 +8,14 @@
 ```
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  ⚡ C A P T U R E   W I - F I   |   C R A C K   P A S S W O R D║
-║  ⚡ S E T T I N G   U P   B R U T E F O R C E   A T T A C K   ║
-║  🛡️ B Y   T E A M   U N I T - 6 1 3 9 8                       ║
-║  🌐 github.com/UNIT-61398                                      ║
+║  ⚡ C A P T U R E   W I - F I   |   C R A C K   P A S S W O R D  ║
+║  ⚡ S E T T I N G   U P   B R U T E F O R C E   A T T A C K      ║
+║  🛡️ B Y   T E A M   U N I T - 6 1 3 9 8                          ║
+║  🌐 github.com/UNIT-61398                                        ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-# WIFI-PWN — WiFi Penetration Testing Suite
+# WIFL-PENT — WiFi Penetration Testing Suite
 
 **Fully automated WiFi penetration testing toolkit** for ethical hacking and security research. Captures WPA/WPA2 handshakes and cracks passwords — all from a single hacker-styled terminal interface with `[root@wifi-pwn]~#` prompt.
 
@@ -85,8 +85,8 @@
 ## Installation
 
 ```bash
-git clone https://github.com/UNIT-61398/wifi-pwn.git
-cd wifi-pwn
+git clone https://github.com/UNIT-61398/WIFLPENT.git
+cd WIFLPENT
 chmod +x wifi_pen_test.sh
 ```
 
@@ -138,12 +138,12 @@ All captures, wordlists, and cracked passwords are saved to:
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  This tool is for AUTHORIZED security testing and educational   ║
-║  purposes ONLY. Unauthorized use against networks you do not    ║
-║  own or have explicit permission to test is ILLEGAL.            ║
-║                                                                ║
-║  The authors assume NO LIABILITY and are NOT RESPONSIBLE for    ║
-║  any misuse or damage caused by this program.                   ║
+║  This tool is for AUTHORIZED security testing and educational    ║
+║  purposes ONLY. Unauthorized use against networks you do not     ║
+║  own or have explicit permission to test is ILLEGAL.             ║
+║                                                                  ║
+║  The authors assume NO LIABILITY and are NOT RESPONSIBLE for     ║
+║  any misuse or damage caused by this program.                    ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
