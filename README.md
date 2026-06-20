@@ -151,7 +151,7 @@ All captures, wordlists, and cracked passwords are saved to:
 
 ## License
 
-MIT License — Copyright (c) 2024 Team UNIT-61398
+MIT License — Copyright (c) 2026 Team UNIT-61398
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy
