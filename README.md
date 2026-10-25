@@ -1,44 +1,27 @@
-```
-  ██╗    ██╗██╗███████╗██╗     ██████╗ ███████╗███╗   ██╗████████╗
-  ██║    ██║██║██╔════╝██║     ██╔══██╗██╔════╝████╗  ██║╚══██╔══╝
-  ██║ █╗ ██║██║█████╗  ██║     ██████╔╝█████╗  ██╔██╗ ██║   ██║   
-  ██║███╗██║██║██╔══╝  ██║     ██╔═══╝ ██╔══╝  ██║╚██╗██║   ██║   
-  ╚███╔███╔╝██║██║     ███████╗██║     ███████╗██║ ╚████║   ██║   
-   ╚══╝╚══╝ ╚═╝╚═╝     ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═══╝   ╚═╝   
-```
-```
-╔══════════════════════════════════════════════════════════════════╗
-║  ⚡ C A P T U R E   W I - F I   |   C R A C K   P A S S W O R D  ║
-║  ⚡ S E T T I N G   U P   B R U T E F O R C E   A T T A C K      ║
-║  🛡️ B Y   T E A M   U N I T - 6 1 3 9 8                          ║
-║  🌐 github.com/UNIT-61398                                        ║
-╚══════════════════════════════════════════════════════════════════╝
-```
+# WIFLPENT — WiFi Penetration Testing Suite
 
-# WIFL-PENT — WiFi Penetration Testing Suite
+WIFLPENT is a WiFi penetration-testing suite for authorized testing, ethical hacking, and security research. It captures WPA/WPA2 handshakes and cracks passwords, all from a single terminal interface with a `[root@wifi-pwn]~#` prompt.
 
-**Fully automated WiFi penetration testing toolkit** for ethical hacking and security research. Captures WPA/WPA2 handshakes and cracks passwords — all from a single hacker-styled terminal interface with `[root@wifi-pwn]~#` prompt.
+> **Authorized testing only:** This tool is for AUTHORIZED security testing and educational purposes ONLY. Unauthorized use against networks you do not own or have explicit permission to test is ILLEGAL. The authors assume NO LIABILITY and are NOT RESPONSIBLE for any misuse or damage caused by this program.
 
 ---
 
 ## Features
 
 | # | Feature | Description |
-|---|---------|-------------|
+| --- | --- | --- |
 | `[1]` | **FULL AUTO** | Complete attack sequence — monitor mode → scan → handshake capture → password cracking |
 | `[2]` | **ENABLE MONITOR** | Auto-detects interfaces, kills interfering processes, enables monitor mode |
 | `[3]` | **SCAN NETWORKS** | Scan nearby APs with auto-extending duration, BSSID + channel detection |
 | `[4]` | **CAPTURE HANDSHAKE** | Set target BSSID/channel, launch deauth attack, capture WPA handshake |
 | `[5]` | **CRACK PASSWORD** | aircrack-ng with rockyou.txt wordlist in a separate terminal |
 | `[6]` | **CLEANUP** | Stop monitor mode, restart NetworkManager, restore network |
-| `[7]` | **MASK ATTACK** | **Hashcat brute-force** with custom charset & configurable length range (8-22 chars) |
+| `[7]` | **MASK ATTACK** | Hashcat brute-force with custom charset & configurable length range (8-22 chars) |
 | `[8]` | **EXIT** | Exit the tool |
 
----
+### Mask Attack (Option 7)
 
-## Mask Attack (Option 7)
-
-**Customizable brute-force attack using Hashcat:**
+Customizable brute-force attack using Hashcat:
 
 - **Character Sets** — 15 combinations: uppercase, lowercase, digits, special, or any mix
 - **Custom Length Range** — Set your own min/max password length (default: 8-22)
@@ -46,7 +29,7 @@
 - **Auto-Conversion** — Automatically converts `.cap` to hccapx (2500) or 22000 format
 - **Separate Terminal** — Runs in a dedicated window with hacker-styled output
 
-### Example flow:
+#### Example flow
 
 ```
 [root@wifi-pwn]~# 7
@@ -68,12 +51,12 @@
 
 - Kali Linux / Parrot OS / any Debian-based distro
 - Wireless adapter with **monitor mode** support
-- **Root privileges** (`sudo`)
+- Root privileges (`sudo`)
 
 ### Dependencies (auto-installed if missing)
 
 | Package | Purpose |
-|---------|---------|
+| --- | --- |
 | `aircrack-ng` | Suite: airodump-ng, aireplay-ng, airmon-ng |
 | `iwconfig` | Wireless interface detection |
 | `hashcat` | GPU-accelerated mask attack (option 7) |
@@ -95,6 +78,8 @@ chmod +x wifi_pen_test.sh
 ```bash
 sudo ./wifi_pen_test.sh
 ```
+
+Then choose an option from the menu (options 1-8, as listed in Features above).
 
 ### Quick Start — Full Auto
 
@@ -119,7 +104,7 @@ sudo ./wifi_pen_test.sh
 
 ---
 
-## Output
+## Outputs
 
 All captures, wordlists, and cracked passwords are saved to:
 
@@ -136,39 +121,14 @@ All captures, wordlists, and cracked passwords are saved to:
 
 ## Disclaimer
 
-```
-╔══════════════════════════════════════════════════════════════════╗
-║  This tool is for AUTHORIZED security testing and educational    ║
-║  purposes ONLY. Unauthorized use against networks you do not     ║
-║  own or have explicit permission to test is ILLEGAL.             ║
-║                                                                  ║
-║  The authors assume NO LIABILITY and are NOT RESPONSIBLE for     ║
-║  any misuse or damage caused by this program.                    ║
-╚══════════════════════════════════════════════════════════════════╝
-```
+This tool is for AUTHORIZED security testing and educational purposes ONLY. Unauthorized use against networks you do not own or have explicit permission to test is ILLEGAL.
+
+The authors assume NO LIABILITY and are NOT RESPONSIBLE for any misuse or damage caused by this program.
+
+Use WIFLPENT only on networks you own or have explicit, written permission to test.
 
 ---
 
 ## License
 
-MIT License — Copyright (c) 2026 Team UNIT-61398
-
-```
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+MIT License — Copyright (c) 2026 Team UNIT-61398. See the `LICENSE` file for the full license text.
