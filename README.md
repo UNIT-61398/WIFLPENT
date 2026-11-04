@@ -119,6 +119,28 @@ sudo ./wifi_pen_test.sh --check
 
 ---
 
+## Usage demo (video)
+
+Watch the full FULL AUTO flow in action, recorded on Kali Linux (2:50):
+
+<video src="wiflpent-usage-demo.mp4" controls width="100%"></video>
+
+[Watch / download the demo video](wiflpent-usage-demo.mp4)
+
+What the video shows, in order:
+
+1. Run `sudo ./wifi_pen_test.sh` and choose option `[1]` FULL AUTO from the menu.
+2. Pick the wireless interface (wlan0 in the video) for monitor mode. The tool stops NetworkManager / wpa_supplicant, enables and verifies monitor mode, and recovers if the first probe sees no frames.
+3. Scan for nearby networks (25 seconds on the first scan) and select the target from the list.
+4. Capture the WPA handshake for the target, with the capture name and handshake verification shown on screen.
+5. Restore managed networking after the capture.
+6. Prepare the wordlist (rockyou.txt in the video) and crack the capture in a separate terminal with aircrack-ng.
+7. The cracked password is saved to a `password_<capture>_<timestamp>.txt` file in the output folder.
+
+> This demo is on a test network the author owns. Use WIFLPENT only on networks you own or have explicit, written permission to test.
+
+---
+
 ## Wordlist
 
 Option [5] and FULL AUTO prepare `rockyou.txt` automatically, in this order:
