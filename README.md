@@ -123,7 +123,7 @@ sudo ./wifi_pen_test.sh --check
 
 Watch the full FULL AUTO flow in action, recorded on Kali Linux (2:50):
 
-<video src="wiflpent-usage-demo.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/436209c7-5257-4a2f-a719-2c5b2720d657
 
 [Watch / download the demo video](wiflpent-usage-demo.mp4)
 
